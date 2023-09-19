@@ -1,5 +1,5 @@
 Add-Type -AssemblyName System.Windows.Forms
- $credential = Get-Credential -Message "Enter your Windows credentials"
+$credential = Get-Credential -Message "Enter your Windows credentials"
 # Create a form
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Add/Remove Remote Users"
@@ -17,7 +17,7 @@ $panel.Size = New-Object System.Drawing.Size(360, 330)
 $panel.AutoScroll = $true
 
 # Create a check box for each server
-$servers = Get-Content 'G:\System & Backup Department\System Scripts\add-remote-group-users\servers.txt'
+$servers = Get-Content ".\servers.txt'
 $checkBoxes = @()
 $yPos = 20
 
