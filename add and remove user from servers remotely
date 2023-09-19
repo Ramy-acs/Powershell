@@ -1,0 +1,129 @@
+Add-Type -AssemblyName System.Windows.Forms
+ $credential = Get-Credential -Message "Enter your Windows credentials"
+# Create a form
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "Add/Remove Remote Users"
+$form.Size = New-Object System.Drawing.Size(500, 600)
+
+# Create a group box for server selection
+$groupBox = New-Object System.Windows.Forms.GroupBox
+$groupBox.Text = "Servers"
+$groupBox.Size = New-Object System.Drawing.Size(380, 250)
+$groupBox.Location = New-Object System.Drawing.Point(15, 15)
+
+# Create a scrollable panel within the group box
+$panel = New-Object System.Windows.Forms.Panel
+$panel.Size = New-Object System.Drawing.Size(360, 330)
+$panel.AutoScroll = $true
+
+# Create a check box for each server
+$servers = Get-Content 'G:\System & Backup Department\System Scripts\add-remote-group-users\servers.txt'
+$checkBoxes = @()
+$yPos = 20
+
+foreach ($server in $servers) {
+    $checkBox = New-Object System.Windows.Forms.CheckBox
+    $checkBox.Text = $server
+    $checkBox.Location = New-Object System.Drawing.Point(20, $yPos)
+    $checkBox.Size = New-Object System.Drawing.Size(340, 20)
+    $checkBoxes += $checkBox
+    $panel.Controls.Add($checkBox)
+    $yPos += 30
+}
+
+$groupBox.Controls.Add($panel)
+
+# Create a text box for user input
+$userTextBox = New-Object System.Windows.Forms.TextBox
+$userTextBox.Location = New-Object System.Drawing.Point(20, 280)
+$userTextBox.Size = New-Object System.Drawing.Size(340, 20)
+
+# Create a combo box for action selection
+$actionComboBox = New-Object System.Windows.Forms.ComboBox
+$actionComboBox.Location = New-Object System.Drawing.Point(20, 320)
+$actionComboBox.Size = New-Object System.Drawing.Size(340, 20)
+$actionComboBox.Items.AddRange(@("Add", "Remove"))
+$actionComboBox.SelectedIndex = 0
+
+# Create a button to perform the action
+$button = New-Object System.Windows.Forms.Button
+$button.Text = "Perform Action"
+$button.Location = New-Object System.Drawing.Point(140, 360)
+$button.Size = New-Object System.Drawing.Size(120, 30)
+$button.Add_Click({
+    $selectedServers = $checkBoxes | Where-Object { $_.Checked }
+    $addeduser = $userTextBox.Text
+    $action = $actionComboBox.SelectedItem
+
+    # Disable controls during processing
+    $button.Enabled = $false
+    $checkAllButton.Enabled = $false
+    $userTextBox.Enabled = $false
+    $actionComboBox.Enabled = $false
+
+    # Clear the output text box
+    $outputTextBox.Text = ""
+
+    foreach ($selectedServer in $selectedServers) {
+        $serverName = $selectedServer.Text
+
+        # Connect to the server and perform the action
+        try {
+            $session = New-PSSession -ComputerName $serverName -Credential $credential -Authentication Negotiate
+            $scriptBlock = {
+                param($user, $action)
+                $groupName = "Remote Desktop Users"
+                if ($action -eq "Add") {
+                     net localgroup $groupName "fathalla\$user" /add
+                } elseif ($action -eq "Remove") {
+                    net localgroup $groupName $user /delete
+                }
+            }
+            $result = Invoke-Command -Session $session -ScriptBlock $scriptBlock -ArgumentList $addeduser, $action
+            $output = "User '$addeduser' $action-ed from group 'Remote Desktop Users' on server '$serverName'."
+            $outputTextBox.AppendText("$output`n")
+        } catch {
+            $output = "Failed to connect to server '$serverName': $_"
+            $outputTextBox.AppendText("$output`n")
+        } finally {
+            # Close the PowerShell remoting session
+            Remove-PSSession -Session $session -ErrorAction SilentlyContinue
+        }
+    }
+
+    # Re-enable controls after processing
+    $button.Enabled = $true
+    $checkAllButton.Enabled = $true
+    $userTextBox.Enabled = $true
+    $actionComboBox.Enabled = $true
+})
+
+# Create a button to check all servers
+$checkAllButton = New-Object System.Windows.Forms.Button
+$checkAllButton.Text = "Check All"
+$checkAllButton.Location = New-Object System.Drawing.Point(20, 360)
+$checkAllButton.Size = New-Object System.Drawing.Size(100, 30)
+$checkAllButton.Add_Click({
+    foreach ($checkBox in $checkBoxes) {
+        $checkBox.Checked = $true
+    }
+})
+
+# Create a multi-line text box for output
+$outputTextBox = New-Object System.Windows.Forms.TextBox
+$outputTextBox.Location = New-Object System.Drawing.Point(20, 400)
+$outputTextBox.Size = New-Object System.Drawing.Size(450, 150)
+$outputTextBox.Multiline = $true
+$outputTextBox.ScrollBars = "Vertical"
+$outputTextBox.ReadOnly = $true
+
+# Add controls to the form
+$form.Controls.Add($groupBox)
+$form.Controls.Add($userTextBox)
+$form.Controls.Add($actionComboBox)
+$form.Controls.Add($button)
+$form.Controls.Add($checkAllButton)
+$form.Controls.Add($outputTextBox)
+
+# Show the form
+$form.ShowDialog() | Out-Null
